@@ -5,11 +5,12 @@
 #include <linux/types.h>
 #include <linux/netfilter.h>
 #include <errno.h>
-#include "../header/lib/json-c/json.h"
+//#include "../header/lib/json-c/json.h"
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include "../header/packet.h"
+//struct json_object *rules;
 
-static u_int32_t print_pkt(struct nfq_data *tb, bool *isAccept)
+static u_int32_t packetFilter(struct nfq_data *tb, bool *isAccept)
 {
 	int id = 0;
 	struct nfqnl_msg_packet_hdr *ph;
@@ -26,7 +27,7 @@ static u_int32_t print_pkt(struct nfq_data *tb, bool *isAccept)
 		if (hwph)
 		{
 			//int hlen = ntohs(hwph->hw_addrlen);
-			//printMACAddress(hwph->hw_addr);
+			printMACAddress(*((mac_addr *) &hwph->hw_addr));
 			if (ntohs(ph->hw_protocol) == ETHERTYPE_IP)
 			{
 				ret = nfq_get_payload(tb, &data);
@@ -35,35 +36,22 @@ static u_int32_t print_pkt(struct nfq_data *tb, bool *isAccept)
 					int packetIndex = 0;
 					const ip_header *ip = (ip_header *)data;
 					packetIndex += sizeof(ip_header);
-					printf("IP SRC : ");
-					printIPAddress(ip->ip_src);
-					printf("\n");
-					printf("IP DEST : ");
-					printIPAddress(ip->ip_dst);
-					ip_addr temp;
-					temp.a = 192;
-					temp.b = 168;
-					temp.c = 134;
-					temp.d = 1;
-					if (equalIPAddr(ip->ip_dst, temp))
-					{
-						*isAccept = false;
-					}
+					
 					printf("\n");
 				}
 			}
 		}
-		fputc('\n', stdout);
+		printf("\n");
 	}
 
 	return id;
 }
 
-static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
+static int packetCallback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 			  struct nfq_data *nfa, void *data)
 {
 	bool *isAccept = new bool(true);
-	u_int32_t id = print_pkt(nfa, isAccept);
+	u_int32_t id = packetFilter(nfa, isAccept);
 	return nfq_set_verdict(qh, id, *isAccept ? NF_ACCEPT : NF_DROP, 0, NULL);
 }
 
@@ -99,7 +87,7 @@ int main(int argc, char **argv)
 	}
 
 	printf("binding this socket to queue '0'\n");
-	qh = nfq_create_queue(h, 0, &cb, NULL);
+	qh = nfq_create_queue(h, 0, &packetCallback, NULL);
 	if (!qh)
 	{
 		fprintf(stderr, "error during nfq_create_queue()\n");
